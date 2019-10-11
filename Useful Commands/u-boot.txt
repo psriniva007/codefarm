@@ -1,0 +1,9 @@
+u-boot params for NFS boot
+==========================
+
+#setenv serverip 192.168.15.217
+#setenv kernel uImage
+#setenv console ttymxc0
+#setenv nfsroot <path_to_rootfs>/rootfs
+#setenv bootcmd run netboot
+#saveenv
