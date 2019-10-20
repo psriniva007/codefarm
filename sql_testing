@@ -1,0 +1,275 @@
+#define _GNU_SOURCE
+#include <stdio.h>
+#include <sqlite3.h>
+#include <stdlib.h>
+#include <string.h>
+
+struct stUserConfig{
+	int config1;
+	int config2;
+	int config3;
+	char str_config1[10];
+	char str_config2[10];
+	char str_config3[10];
+}user_config;
+
+typedef struct {
+	char* name;
+	int  value;
+}stConfigDBInteger;
+
+typedef struct {
+	char* name;
+	char* value;
+}stConfigDBString;
+
+stConfigDBInteger userConfigInteger[]={
+"config1",10,
+"config2",20,
+"config3",30,
+(char*)NULL, 0
+};
+stConfigDBString userConfigString[]={
+"str_config1","str1",
+"str_config2","str2",
+"str_config3","str3",
+(char*)NULL, (char*)NULL, 0
+};
+
+int config_db_get_integer_value(sqlite3* db, char* table_name, char* col_name)
+{
+	sqlite3_stmt *stmt;
+	int step = 0;
+	int value = 0;	
+        char * sql;
+
+        asprintf(&sql,"select prop_value from %s where prop_name=\'%s\'", table_name, col_name);
+	sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+        step = sqlite3_step(stmt);
+
+        if (step == SQLITE_ROW) {
+                value = sqlite3_column_int(stmt, 0);
+        }
+
+	free(sql);
+	sqlite3_finalize(stmt);
+
+	return value;
+}
+
+int config_db_get_string_value(sqlite3* db, char* table_name, char* col_name, char* value, int value_len)
+{
+        sqlite3_stmt *stmt;
+	char * sql;
+        int step = 0;
+	int len = 0;
+
+        asprintf(&sql,"select prop_value from %s where prop_name=\'%s\'", table_name, col_name);
+        sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+        step = sqlite3_step(stmt);
+
+        if (step == SQLITE_ROW) {
+                memcpy (value, sqlite3_column_text(stmt, 0), value_len);
+        }
+
+	free(sql);
+        sqlite3_finalize(stmt);
+	return 0;
+}
+
+int config_db_set_string_value(sqlite3* db, char* table_name, char* col_name, char* value)
+{
+
+	char *zErrMsg = 0;
+   	int rc;
+	char * sql;
+
+	asprintf(&sql,"update %s set prop_value=\'%s\' where prop_name=\'%s\';", table_name, value, col_name);
+   	rc = sqlite3_exec(db, sql, NULL, NULL, &zErrMsg);
+	   
+   	if( rc != SQLITE_OK ) {
+      		printf("SQL error: %s\n", zErrMsg);
+		sqlite3_free(zErrMsg);
+	}
+
+   	free(sql);
+
+}
+
+int config_db_set_integer_value(sqlite3* db, char* table_name, char* col_name, int value)
+{
+
+	char *zErrMsg = 0;
+   	int rc;
+	char * sql;
+
+	asprintf(&sql,"update %s set prop_value=%d where prop_name=\'%s\';", table_name, value, col_name);
+   	rc = sqlite3_exec(db, sql, NULL, NULL, &zErrMsg);
+	   
+   	if( rc != SQLITE_OK ) {
+      		printf("SQL error: %s\n", zErrMsg);
+		sqlite3_free(zErrMsg);
+	}
+
+   	free(sql);
+
+}
+
+int main(void)
+{
+	sqlite3 *db;
+	sqlite3_stmt *stmt;
+	char *err_msg = 0;
+	int rc = 0;
+	int index = 0;
+
+	sqlite3_open("user_config.db", &db);
+
+	if (db == NULL)
+	{
+		printf("Failed to open DB\n");
+		return 1;
+	}
+
+	// ********************************************************
+
+	char * sql;
+    	int size = 0;
+
+    	size  = asprintf(&sql,"CREATE TABLE user_config_integer ( \
+		prop_name TEXT, \
+		prop_value INT \
+		);");
+
+	if(size == -1)
+	{
+        	printf("asprintf failed in main\n");
+		sqlite3_close(db);
+		return 0;
+
+	}
+
+    	rc = sqlite3_exec(db, sql, 0, 0, &err_msg);
+
+    	if (rc != SQLITE_OK ){
+
+      		fprintf(stderr, "SQL error: %s\n", err_msg);
+      		sqlite3_free(err_msg);
+      		sqlite3_close(db);
+      		free(sql);
+      		return 0;
+  	}
+
+	free(sql);
+
+	// ********************************************************
+
+	size  = asprintf(&sql,"CREATE TABLE user_config_string ( \
+		prop_name TEXT, \
+		prop_value TEXT \
+		);");
+
+	if(size == -1)
+	{
+        	printf("asprintf failed in main\n");
+		sqlite3_close(db);
+		return 0;
+
+	}
+
+    	rc = sqlite3_exec(db, sql, 0, 0, &err_msg);
+
+    	if (rc != SQLITE_OK ){
+
+      		fprintf(stderr, "SQL error: %s\n", err_msg);
+      		sqlite3_free(err_msg);
+      		sqlite3_close(db);
+      		free(sql);
+      		return 0;
+  	}
+
+	free(sql);
+
+
+	// ********************************************************
+
+	index = 0;
+	do{
+	size  = asprintf(&sql,"INSERT INTO user_config_integer (prop_name, prop_value) VALUES (\'%s\', %d);",	userConfigInteger[index].name, userConfigInteger[index].value);
+	printf("%s\n", sql);
+        if(size == -1)
+        {
+                printf("asprintf failed in main\n");
+                sqlite3_close(db);
+                return 0;
+
+        }
+
+        rc = sqlite3_exec(db, sql, 0, 0, &err_msg);
+
+        if (rc != SQLITE_OK ){
+
+                fprintf(stderr, "SQL error: %s\n", err_msg);
+                sqlite3_free(err_msg);
+                sqlite3_close(db);
+                free(sql);
+                return 0;
+        }
+
+        free(sql);
+	index++;
+
+	}while(userConfigInteger[index].name != NULL);
+
+	// *******************************************************
+
+	index = 0;
+	do{
+	size  = asprintf(&sql,"INSERT INTO user_config_string (prop_name, prop_value) VALUES (\'%s\', \'%s\');",	userConfigString[index].name, userConfigString[index].value);
+	printf("%s\n", sql);
+        if(size == -1)
+        {
+                printf("asprintf failed in main\n");
+                sqlite3_close(db);
+                return 0;
+
+        }
+
+        rc = sqlite3_exec(db, sql, 0, 0, &err_msg);
+
+        if (rc != SQLITE_OK ){
+
+                fprintf(stderr, "SQL error: %s\n", err_msg);
+                sqlite3_free(err_msg);
+                sqlite3_close(db);
+                free(sql);
+                return 0;
+        }
+
+        free(sql);
+	index++;
+
+	}while(userConfigString[index].name != NULL);
+	// *******************************************************
+
+	printf("Performing query...\n");
+
+	config_db_get_string_value(db, (char*)"user_config_string", "str_config1", user_config.str_config1, 10);    
+	user_config.config1 = config_db_get_integer_value(db, (char*)"user_config_integer", "config1");
+
+	printf("str_config1 = %s\n", user_config.str_config1);
+        printf("config1 = %d\n", user_config.config1);
+
+	config_db_set_string_value(db, (char*)"user_config_string", "str_config1", "new value");
+	config_db_set_integer_value(db, (char*)"user_config_integer", "config1", 20);
+	
+	config_db_get_string_value(db, (char*)"user_config_string", "str_config1", user_config.str_config1, 10);
+	user_config.config1 = config_db_get_integer_value(db, (char*)"user_config_integer", "config1");
+
+	printf("str_config1 = %s\n", user_config.str_config1);
+        printf("config1 = %d\n", user_config.config1);
+
+	sqlite3_close(db);
+	getc(stdin);
+	return 0;
+}
